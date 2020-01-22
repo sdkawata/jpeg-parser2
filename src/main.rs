@@ -1,5 +1,5 @@
 use std::env;
-use std::io::{BufReader, Read};
+use std::io::{BufReader, Read, Cursor, SeekFrom, Seek};
 use std::fs::File;
 use failure::format_err;
 use failure::Error;
@@ -25,14 +25,21 @@ fn check_soi<T:Read>(r: &mut T) -> Result<(), Error> {
     Ok(())
 }
 
+struct QuantizationTable {
+    tq: u8,
+    table: [u8;64]
+}
+
 struct Decoder<T:Read> {
-    reader: T
+    reader: T,
+    qts: Vec<QuantizationTable>
 }
 
 impl<T:Read> Decoder<T> {
     pub fn new(reader:T) -> Decoder<T> {
         Decoder {
-            reader: reader
+            reader: reader,
+            qts: Vec::new()
         }
     }
     fn next_marker(&mut self) -> Result<u8, Error>  {
@@ -53,12 +60,32 @@ impl<T:Read> Decoder<T> {
         println!("APP{} size={}", index, content.len());
         Ok(())
     }
+    fn parse_dqt(&mut self) -> Result<(), Error> {
+        let content = self.read_marker_content()?;
+        let len = content.len() as u64;
+        println!("DQT size={}", len);
+        let mut cursor = Cursor::new(content);
+        while len > cursor.position() {
+            let flag = read_u8(&mut cursor)?;
+            let pq = flag >> 4;
+            let tq = flag & 0xf;
+            println!("pq(presision)={} tq(destination identifier)={}", pq, tq);
+            let mut buf = [0;64];
+            cursor.read_exact(&mut buf)?;
+            self.qts.push(QuantizationTable{
+                tq: tq,
+                table: buf
+            })
+        }
+        Ok(())
+    }
     pub fn decode(&mut self) -> Result<(), Error>{
         check_soi(&mut self.reader)?;
         println!("SOI found");
         loop {
             match self.next_marker()? {
                 m @ 0xe0..=0xef => self.parse_app(m-0xe0)?,
+                0xdb => self.parse_dqt()?,
                 m => return Err(format_err!("unknown marker {:x}", m))
             }
         }
