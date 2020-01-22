@@ -15,6 +15,9 @@ fn read_u16<T:Read>(r: &mut T) -> Result<u16, Error> {
     r.read_exact(&mut buf)?;
     Ok((buf[0] as u16) * 0x100 + (buf[1] as u16))
 }
+fn ceildiv(d0:u64, d1:u64) -> u64 {
+    (d0 + (d1 - 1)) / d1
+}
 
 
 fn check_soi<T:Read>(r: &mut T) -> Result<(), Error> {
@@ -193,6 +196,22 @@ impl<T:Read> Decoder<T> {
         let al = a & 0xf;
         println!("ss(Start of spectral or predictor selection)={} se(End of spectral selection)={}", ss, se);
         println!("ah(Successive approximation bit position high)={} al(Successive approximation bit position low or point transform)={}", ah, al);
+        let maxHi = components.iter().fold(0, |acc, v| u8::max(acc,v.hi));
+        let maxVi = components.iter().fold(0, |acc, v| u8::max(acc,v.vi));
+        let mcuX = ceildiv(self.width as u64, maxHi as u64);
+        let mcuY = ceildiv(self.height as u64, maxVi as u64);
+        for iy in 0..mcuY {
+            for ix in 0..mcuX {
+                //parseMCU
+                for c in components.iter() {
+                    for iv in 0..c.vi {
+                        for ih in 0..c.hi {
+                            // TODO
+                        }
+                    }
+                }
+            }
+        }
         Ok(())
     }
     pub fn decode(&mut self) -> Result<(), Error>{
