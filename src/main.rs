@@ -1,5 +1,5 @@
 use std::env;
-use std::io::{BufReader, Read, Cursor, Seek, Write};
+use std::io::{BufReader,BufWriter, Read, Cursor, Write};
 use std::fs::File;
 use std::iter::Iterator;
 use failure::format_err;
@@ -25,6 +25,10 @@ fn read_u16<T:Read>(r: &mut T) -> Result<u16, Error> {
     let mut buf = [0;2];
     r.read_exact(&mut buf)?;
     Ok((buf[0] as u16) * 0x100 + (buf[1] as u16))
+}
+
+fn tr255(i:f64) -> i32 {
+    i32::min(i32::max(i as i32,0),255)
 }
 fn ceildiv(d0:u64, d1:u64) -> u64 {
     (d0 + (d1 - 1)) / d1
@@ -60,7 +64,9 @@ struct Component {
     dcHaff: HaffTable,
     hi: u8,
     vi: u8,
-    prevDC: i32
+    prevDC: i32,
+    plane: Vec<u8>,
+    stride: i32
 }
 
 #[derive(Clone, Copy)]
@@ -193,6 +199,7 @@ struct Decoder<T:Read> {
     scanComponents: Vec<ScanComponent>,
     height: u16,
     width: u16,
+    components: Vec<Component>
 }
 
 impl<T:Read> Decoder<T> {
@@ -203,7 +210,8 @@ impl<T:Read> Decoder<T> {
             hafftables: Vec::new(),
             height: 0,
             width: 0,
-            scanComponents: Vec::new()
+            scanComponents: Vec::new(),
+            components: Vec::new(),
         }
     }
     fn next_marker(&mut self) -> Result<u8, Error>  {
@@ -328,15 +336,15 @@ impl<T:Read> Decoder<T> {
         } 
         res
     }
-    fn parseBlock(&mut self, decoder: &mut HaffDecoder, dcHaff: &HaffTable, acHaff: &HaffTable, qTable: &QuantizationTable, prevDC: i32) -> Result<(i32, [i32;64]), Error> {
+    fn parseBlock(&mut self, decoder: &mut HaffDecoder, dcHaff: &HaffTable, acHaff: &HaffTable, qTable: &QuantizationTable, prevDC: i32) -> Result<(i32, [[u8;8];8]), Error> {
         let mut coeffs = decoder.parseCoeffs(&mut self.reader, dcHaff, acHaff)?;
         let curDC = coeffs[0];
+        coeffs[0]+=prevDC;
         for i in 0..64 {
             coeffs[i] = coeffs[i] * (qTable.table[i] as i32)
         }
         let idcted = self.idct(&coeffs);
-        coeffs[0]+=prevDC;
-        Ok((curDC, coeffs))
+        Ok((curDC, idcted))
     }
     fn parse_sos(&mut self) -> Result<(), Error> {
         let content = self.read_marker_content()?;
@@ -362,6 +370,8 @@ impl<T:Read> Decoder<T> {
                 dcHaff: *dcHaff,
                 qTable: *qTable,
                 prevDC: 0,
+                plane: Vec::new(),
+                stride: 0,
             })
         }
         let ss = read_u8(&mut cursor)?;
@@ -376,6 +386,11 @@ impl<T:Read> Decoder<T> {
         let mcuX = ceildiv(self.width as u64, (maxHi as u64)*8);
         let mcuY = ceildiv(self.height as u64, (maxVi as u64)*8);
         //println!("width={} height={} mcuX={} mcuY={}", self.width, self.height, mcuX, mcuY);
+        for i in 0..components.len() {
+            components[i].stride = mcuX as i32 * 8 * (components[i].vi as i32);
+            let height = mcuY as i32 * 8 * (components[i].hi as i32);
+            components[i].plane = vec![0;(height * components[i].stride) as usize];
+        }
         let mut decoder = HaffDecoder::new();
         for iy in 0..mcuY {
             for ix in 0..mcuX {
@@ -386,10 +401,42 @@ impl<T:Read> Decoder<T> {
                         for ih in 0..c.hi {
                             //println!("MCU ix={} iy={} ih={} iv={}", ix, iy, ih, iv);
                             let (dc, parsed) = self.parseBlock(&mut decoder, &c.dcHaff, &c.acHaff, &c.qTable, c.prevDC)?;
-                            //c.prevDC = dc;
+                            c.prevDC = dc;
+                            let offsetX = ix as i32 * 8  * (c.vi as i32) + (ih as i32) * 8;
+                            let offsetY = iy as i32 * 8 * (c.hi as i32) + (iv as i32) * 8;
+                            for iy in 0..8 {
+                                for ix in 0..8 {
+                                    let offset = (offsetX + ix + (offsetY + iy) * c.stride) as usize;
+                                    c.plane[offset] = parsed[iy as usize][ix as usize];
+                                }
+                            }
                         }
                     }
                 }
+            }
+        }
+        self.components = components;
+        Ok(())
+    }
+    pub fn outputppm<T2:Write>(&mut self,w:&mut T2) -> Result<(), Error> {
+        writeln!(w, "P3");
+        writeln!(w, "{} {}", self.width, self.height);
+        writeln!(w, "255");
+        let maxHi = self.components.iter().fold(0, |acc, v| u8::max(acc,v.hi));
+        let maxVi = self.components.iter().fold(0, |acc, v| u8::max(acc,v.vi));
+        for iy in 0..self.height {
+            for ix in 0..self.width {
+                let mut v = [0.;3];
+                for k in 0..3 {
+                    let c = &self.components[k];
+                    let offsetX = ix as i32 * c.hi as i32 / maxHi as i32;
+                    let offsetY = iy as i32 * c.vi as i32 / maxVi as i32;
+                    v[k] = c.plane[(offsetY * c.stride + offsetX) as usize] as f64;
+                }
+                let r = tr255(v[0] + 1.402 * (v[2] - 128.));
+                let g = tr255(v[0] - 0.34414 * (v[1] - 128.) - 0.71414 * (v[2] - 128.));
+                let b = tr255(v[0] + 1.772 * (v[1] - 128.));
+                writeln!(w, "{} {} {}", r,g,b);
             }
         }
         Ok(())
@@ -416,5 +463,7 @@ fn main() {
     let path = env::args().nth(1).unwrap();
     println!("path {}", path);
     let mut decoder = Decoder::new(BufReader::new(File::open(path).unwrap()));
-    decoder.decode().unwrap()
+    decoder.decode().unwrap();
+    let mut w = BufWriter::new(File::create("output.ppm").unwrap());
+    decoder.outputppm(&mut w).unwrap();
 }
