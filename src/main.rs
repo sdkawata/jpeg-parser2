@@ -26,20 +26,33 @@ fn check_soi<T:Read>(r: &mut T) -> Result<(), Error> {
 }
 
 struct QuantizationTable {
-    tq: u8,
+    id: u8,
     table: [u8;64]
+}
+
+struct Component {
+    id: u8,
+    hi: u8,
+    vi: u8,
+    qt_id: u8,
 }
 
 struct Decoder<T:Read> {
     reader: T,
-    qts: Vec<QuantizationTable>
+    qts: Vec<QuantizationTable>,
+    components: Vec<Component>,
+    height: u16,
+    width: u16,
 }
 
 impl<T:Read> Decoder<T> {
     pub fn new(reader:T) -> Decoder<T> {
         Decoder {
             reader: reader,
-            qts: Vec::new()
+            qts: Vec::new(),
+            height: 0,
+            width: 0,
+            components: Vec::new()
         }
     }
     fn next_marker(&mut self) -> Result<u8, Error>  {
@@ -73,8 +86,35 @@ impl<T:Read> Decoder<T> {
             let mut buf = [0;64];
             cursor.read_exact(&mut buf)?;
             self.qts.push(QuantizationTable{
-                tq: tq,
+                id: tq,
                 table: buf
+            })
+        }
+        Ok(())
+    }
+    fn parse_sof0(&mut self) -> Result<(), Error> {
+        let content = self.read_marker_content()?;
+        println!("SOF0 size={}", content.len());
+        let mut r = Cursor::new(content);
+        let p = read_u8(&mut r)?;
+        let y = read_u16(&mut r)?;
+        let x = read_u16(&mut r)?;
+        let nf = read_u8(&mut r)?;
+        println!("p(presision)={} y(lines)={} x(samples per line)={} nf(number of components)={}", p,y,x,nf);
+        self.height = y;
+        self.width = x;
+        for i in 0..nf {
+            let ci = read_u8(&mut r)?;
+            let hvi = read_u8(&mut r)?;
+            let tqi = read_u8(&mut r)?;
+            let hi = hvi >> 4;
+            let vi = hvi & 0xf;
+            println!("ci(id)={} hi,vi(sampling factor)={},{} tqi(dqt selector)={}", ci, hi, vi, tqi);
+            self.components.push(Component{
+                id: ci,
+                hi: hi,
+                vi: vi,
+                qt_id: tqi
             })
         }
         Ok(())
@@ -86,6 +126,7 @@ impl<T:Read> Decoder<T> {
             match self.next_marker()? {
                 m @ 0xe0..=0xef => self.parse_app(m-0xe0)?,
                 0xdb => self.parse_dqt()?,
+                0xc0 => self.parse_sof0()?,
                 m => return Err(format_err!("unknown marker {:x}", m))
             }
         }
