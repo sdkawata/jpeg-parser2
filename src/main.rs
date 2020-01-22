@@ -37,9 +37,17 @@ struct Component {
     qt_id: u8,
 }
 
+struct HaffTable {
+    tc: u8,
+    id: u8,
+    bits: [u8;16],
+    values: Vec<u8>
+}
+
 struct Decoder<T:Read> {
     reader: T,
     qts: Vec<QuantizationTable>,
+    hafftables: Vec<HaffTable>,
     components: Vec<Component>,
     height: u16,
     width: u16,
@@ -50,6 +58,7 @@ impl<T:Read> Decoder<T> {
         Decoder {
             reader: reader,
             qts: Vec::new(),
+            hafftables: Vec::new(),
             height: 0,
             width: 0,
             components: Vec::new()
@@ -119,6 +128,30 @@ impl<T:Read> Decoder<T> {
         }
         Ok(())
     }
+    fn parse_dht(&mut self) -> Result<(), Error> {
+        let content = self.read_marker_content()?;
+        let len = content.len() as u64;
+        println!("DHT size={}", len);
+        let mut cursor = Cursor::new(content);
+        while len > cursor.position() {
+            let flag = read_u8(&mut cursor)?;
+            let tc = flag >> 4;
+            let tn = flag & 0xf;
+            println!("tc={}({}) th(destination identifier)={}", tc, if tc == 0 { "DC" } else {"AC"}, tn);
+            let mut bits = [0;16];
+            cursor.read_exact(&mut bits)?;
+            let valuenum = bits.iter().fold(0, |acc, a| acc + a);
+            let mut values = vec![0;valuenum as usize];
+            cursor.read_exact(&mut values)?;
+            self.hafftables.push(HaffTable{
+                tc: tc,
+                id: tn,
+                bits: bits,
+                values:values
+            })
+        }
+        Ok(())
+    }
     pub fn decode(&mut self) -> Result<(), Error>{
         check_soi(&mut self.reader)?;
         println!("SOI found");
@@ -127,6 +160,7 @@ impl<T:Read> Decoder<T> {
                 m @ 0xe0..=0xef => self.parse_app(m-0xe0)?,
                 0xdb => self.parse_dqt()?,
                 0xc0 => self.parse_sof0()?,
+                0xc4 => self.parse_dht()?,
                 m => return Err(format_err!("unknown marker {:x}", m))
             }
         }
