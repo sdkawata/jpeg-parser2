@@ -183,8 +183,15 @@ impl HaffDecoder {
     fn readBit<T:Read>(&mut self, r:&mut T) -> Result<u8, Error> {
         if self.ptr == 0 {
             let mut buf = [0];
-            r.read_exact(&mut buf);
+            r.read_exact(&mut buf)?;
             self.buf = buf[0];
+            if buf[0] == 0xff {
+                r.read_exact(&mut buf)?;
+                if buf[0] != 0x00 {
+                    return Err(format_err!("found marker {:x} while reading image", buf[0]));
+                }
+                // println!("skpped 0xff 0x00");
+            }
             self.ptr = 8;
         }
         self.ptr-=1;
