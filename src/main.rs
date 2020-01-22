@@ -328,7 +328,7 @@ impl<T:Read> Decoder<T> {
                 for jy in 0..8 {
                     s+=(std::f64::consts::PI * ((2*iy+1)*jy) as f64 / ((2*8) as f64)).cos() * sumx[jy][ix];
                 }
-                let mut r = (s.round()) as i32;
+                let mut r = ((s / 8.).round()) as i32 + 128;
                 r = i32::max(r,0);
                 r = i32::min(r,255);
                 res[iy][ix] = r as u8
@@ -338,12 +338,14 @@ impl<T:Read> Decoder<T> {
     }
     fn parseBlock(&mut self, decoder: &mut HaffDecoder, dcHaff: &HaffTable, acHaff: &HaffTable, qTable: &QuantizationTable, prevDC: i32) -> Result<(i32, [[u8;8];8]), Error> {
         let mut coeffs = decoder.parseCoeffs(&mut self.reader, dcHaff, acHaff)?;
-        let curDC = coeffs[0];
         coeffs[0]+=prevDC;
+        let curDC = coeffs[0];
         for i in 0..64 {
             coeffs[i] = coeffs[i] * (qTable.table[i] as i32)
         }
+        //for i in 0..64 {print!("{},", coeffs[i]);};println!("");
         let idcted = self.idct(&coeffs);
+        //println!("{:?}", idcted);
         Ok((curDC, idcted))
     }
     fn parse_sos(&mut self) -> Result<(), Error> {
@@ -429,9 +431,9 @@ impl<T:Read> Decoder<T> {
                 let mut v = [0.;3];
                 for k in 0..3 {
                     let c = &self.components[k];
-                    let offsetX = ix as i32 * c.hi as i32 / maxHi as i32;
-                    let offsetY = iy as i32 * c.vi as i32 / maxVi as i32;
-                    v[k] = c.plane[(offsetY * c.stride + offsetX) as usize] as f64;
+                    let offset_x = ix as i32 * c.hi as i32 / maxHi as i32;
+                    let offset_y = iy as i32 * c.vi as i32 / maxVi as i32;
+                    v[k] = c.plane[(offset_y * c.stride + offset_x) as usize] as f64;
                 }
                 let r = tr255(v[0] + 1.402 * (v[2] - 128.));
                 let g = tr255(v[0] - 0.34414 * (v[1] - 128.) - 0.71414 * (v[2] - 128.));
