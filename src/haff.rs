@@ -3,12 +3,11 @@ use std::io::Read;
 use failure::format_err;
 use failure::Error;
 
-#[derive(Clone, Copy)]
 pub struct HaffTable {
     pub tc: u8,
     pub id: u8,
     bits: [u8;16],
-    values: [u8;256], //Vecだとコピーできない…
+    values: [u8;256],
     mincodes: [i32;16],
     maxcodes: [i32;16],
     indices: [i32;16],

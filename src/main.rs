@@ -48,8 +48,6 @@ fn check_soi<T:Read>(r: &mut T) -> Result<(), Error> {
     Ok(())
 }
 
-// Componentに回してぶん回したいのでCopyにする。何とかしたい
-#[derive(Clone, Copy)]
 struct QuantizationTable {
     id: u8,
     table: [u8;64]
@@ -63,9 +61,7 @@ struct ScanComponent {
 }
 
 struct Component {
-    qTable: QuantizationTable,
-    acHaff: HaffTable,
-    dcHaff: HaffTable,
+    qt_id: u8,
     hi: u8,
     vi: u8,
     prevDC: i32,
@@ -217,7 +213,10 @@ impl<T:Read> Decoder<T> {
         } 
         res
     }
-    fn parseBlock(&mut self, decoder: &mut HaffDecoder, dcHaff: &HaffTable, acHaff: &HaffTable, qTable: &QuantizationTable, prevDC: i32) -> Result<(i32, [[u8;8];8]), Error> {
+    fn parseBlock(&mut self, decoder: &mut HaffDecoder, qt_id: u8, prevDC: i32) -> Result<(i32, [[u8;8];8]), Error> {
+        let acHaff = self.hafftables.iter().find(|&ht| qt_id == ht.id && ht.tc != 0).ok_or(format_err!("cannot found achafftable"))?;
+        let dcHaff = self.hafftables.iter().find(|&ht| qt_id == ht.id && ht.tc == 0).ok_or(format_err!("cannot found dchafftable"))?;
+        let qTable = self.qts.iter().find(|&qt| qt_id == qt.id).ok_or(format_err!("cannot found qtable"))?;
         let mut coeffs = decoder.parseCoeffs(&mut self.reader, dcHaff, acHaff)?;
         coeffs[0]+=prevDC;
         let curDC = coeffs[0];
@@ -243,15 +242,10 @@ impl<T:Read> Decoder<T> {
             let taj = tj & 0xf;
             println!("csj(scan component selector)={} tdj(dc entropy coding selector)={} taj(ac entropy coding selector)={}", csj, tdj, taj);
             let scanC = self.scanComponents.iter().find(|&sc| sc.id == csj).ok_or(format_err!("cannot found from csj"))?;
-            let acHaff = self.hafftables.iter().find(|&ht| scanC.qt_id == ht.id && ht.tc != 0).ok_or(format_err!("cannot found achafftable"))?;
-            let dcHaff = self.hafftables.iter().find(|&ht| scanC.qt_id == ht.id && ht.tc == 0).ok_or(format_err!("cannot found dchafftable"))?;
-            let qTable = self.qts.iter().find(|&qt| scanC.qt_id == qt.id).ok_or(format_err!("cannot found qtable"))?;
             components.push(Component{
                 hi: scanC.hi,
                 vi: scanC.vi,
-                acHaff: *acHaff,
-                dcHaff: *dcHaff,
-                qTable: *qTable,
+                qt_id: scanC.qt_id,
                 prevDC: 0,
                 plane: Vec::new(),
                 stride: 0,
@@ -283,7 +277,7 @@ impl<T:Read> Decoder<T> {
                     for iv in 0..c.vi {
                         for ih in 0..c.hi {
                             //println!("MCU ix={} iy={} ih={} iv={}", ix, iy, ih, iv);
-                            let (dc, parsed) = self.parseBlock(&mut decoder, &c.dcHaff, &c.acHaff, &c.qTable, c.prevDC)?;
+                            let (dc, parsed) = self.parseBlock(&mut decoder, c.qt_id, c.prevDC)?;
                             c.prevDC = dc;
                             let offsetX = ix as i32 * 8  * (c.vi as i32) + (ih as i32) * 8;
                             let offsetY = iy as i32 * 8 * (c.hi as i32) + (iv as i32) * 8;
