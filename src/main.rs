@@ -274,8 +274,9 @@ impl<T:Read> Decoder<T> {
         let mcuY = ceildiv(self.height as u64, (maxVi as u64)*8);
         //println!("width={} height={} mcuX={} mcuY={}", self.width, self.height, mcuX, mcuY);
         for i in 0..components.len() {
-            components[i].stride = mcuX as i32 * 8 * (components[i].vi as i32);
-            let height = mcuY as i32 * 8 * (components[i].hi as i32);
+            components[i].stride = mcuX as i32 * 8 * (components[i].hi as i32);
+            let height = mcuY as i32 * 8 * (components[i].vi as i32);
+            //println!("i={} stride={} height={}", i, components[i].stride, height);
             components[i].plane = vec![0;(height * components[i].stride) as usize];
         }
         let mut decoder = HaffDecoder::new();
@@ -289,8 +290,8 @@ impl<T:Read> Decoder<T> {
                             //println!("MCU ix={} iy={} ih={} iv={}", ix, iy, ih, iv);
                             let (dc, parsed) = self.parseBlock(&mut decoder, c.qt_id, c.prevDC)?;
                             c.prevDC = dc;
-                            let offsetX = ix as i32 * 8  * (c.vi as i32) + (ih as i32) * 8;
-                            let offsetY = iy as i32 * 8 * (c.hi as i32) + (iv as i32) * 8;
+                            let offsetX = ix as i32 * 8  * (c.hi as i32) + (ih as i32) * 8;
+                            let offsetY = iy as i32 * 8 * (c.vi as i32) + (iv as i32) * 8;
                             for iy in 0..8 {
                                 for ix in 0..8 {
                                     let offset = (offsetX + ix + (offsetY + iy) * c.stride) as usize;
