@@ -92,11 +92,21 @@ impl<T:Read> Decoder<T> {
         }
     }
     fn next_marker(&mut self) -> Result<u8, Error>  {
-        let u0 = read_u8(&mut self.reader)?;
-        if u0 != 0xff {
-            return Err(format_err!("expected 0xff get:{:x}", u0))
+        let mut ignored = 0;
+        loop {
+            let u0 = read_u8(&mut self.reader)?;
+            if u0 == 0xff {
+                let u1 = read_u8(&mut self.reader)?;
+                if u1 != 0x00 {
+                    if ignored != 0 {
+                        println!("extra {} byte before marker {:x}", ignored, u1);
+                    }
+                    return Ok(u1)
+                }
+                ignored+=1;
+            }
+            ignored+=1;
         }
-        read_u8(&mut self.reader)
     }
     fn read_marker_content(&mut self) -> Result<Vec<u8>, Error> {
         let size = read_u16(&mut self.reader)?;
@@ -328,7 +338,10 @@ impl<T:Read> Decoder<T> {
                 0xc0 => self.parse_sof0()?,
                 0xc4 => self.parse_dht()?,
                 0xda => self.parse_sos()?,
-                0xd9 => {println!("reached EOI");return Ok(())}
+                0xd9 => {
+                    println!("reached EOI");
+                    return Ok(())
+                }
                 m => return Err(format_err!("unknown marker {:x}", m))
             }
         }
