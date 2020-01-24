@@ -114,6 +114,30 @@ impl<T:Read> Decoder<T> {
         self.reader.read_exact(&mut buf)?;
         Ok(buf)
     }
+    fn parse_app0(&mut self) -> Result<(), Error> {
+        let content = self.read_marker_content()?;
+        println!("APP0 size={}", content.len());
+        let mut cursor = Cursor::new(content);
+        let mut prefix = [0;5];
+        cursor.read_exact(&mut prefix)?;
+        match std::str::from_utf8(&prefix)? {
+            "JFIF\0" => {
+                println!("JFIF APP0");
+                let version = read_u16(&mut cursor)?;
+                let unit = read_u8(&mut cursor)?;
+                let xdensity = read_u16(&mut cursor)?;
+                let ydensity = read_u16(&mut cursor)?;
+                let xthumbnail = read_u8(&mut cursor)?;
+                let ythumbnail = read_u8(&mut cursor)?;
+                println!("version={}", version);
+                println!("unit={}({}) xdensity={} ydensity={}", unit, match unit {0=>"no unit",1=>"dpi",2=>"dpc", _=> "?"},  xdensity, ydensity);
+                println!("xhtumnail={} ythumbnail={}", xthumbnail, ythumbnail);
+            },
+            "JFXX\0" => println!("JFXX APP0"),
+            _ => (),
+        }
+        Ok(())
+    }
     fn parse_app(&mut self, index: u8) -> Result<(), Error> {
         let content = self.read_marker_content()?;
         println!("APP{} size={}", index, content.len());
@@ -335,7 +359,8 @@ impl<T:Read> Decoder<T> {
         println!("SOI found");
         loop {
             match self.next_marker()? {
-                m @ 0xe0..=0xef => self.parse_app(m-0xe0)?,
+                0xe0 => self.parse_app0()?,
+                m @ 0xe1..=0xef => self.parse_app(m-0xe0)?,
                 0xdb => self.parse_dqt()?,
                 0xc0 => self.parse_sof0()?,
                 0xc4 => self.parse_dht()?,
