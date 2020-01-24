@@ -64,6 +64,8 @@ struct ScanComponent {
 
 struct Component {
     qt_id: u8,
+    tdj: u8,
+    taj: u8,
     hi: u8,
     vi: u8,
     prevDC: i32,
@@ -249,9 +251,9 @@ impl<T:Read> Decoder<T> {
         } 
         res
     }
-    fn parseBlock(&mut self, decoder: &mut HaffDecoder, qt_id: u8, prevDC: i32) -> Result<(i32, [[u8;8];8])> {
-        let acHaff = self.hafftables.iter().find(|&ht| qt_id == ht.id && ht.tc != 0).ok_or(format_err!("cannot found achafftable"))?;
-        let dcHaff = self.hafftables.iter().find(|&ht| qt_id == ht.id && ht.tc == 0).ok_or(format_err!("cannot found dchafftable"))?;
+    fn parseBlock(&mut self, decoder: &mut HaffDecoder, qt_id: u8, tdj: u8, taj: u8, prevDC: i32) -> Result<(i32, [[u8;8];8])> {
+        let acHaff = self.hafftables.iter().find(|&ht| taj == ht.id && ht.tc != 0).ok_or(format_err!("cannot found achafftable"))?;
+        let dcHaff = self.hafftables.iter().find(|&ht| tdj == ht.id && ht.tc == 0).ok_or(format_err!("cannot found dchafftable"))?;
         let qTable = self.qts.iter().find(|&qt| qt_id == qt.id).ok_or(format_err!("cannot found qtable"))?;
         let mut coeffs = decoder.parseCoeffs(&mut self.reader, dcHaff, acHaff)?;
         coeffs[0]+=prevDC;
@@ -282,6 +284,8 @@ impl<T:Read> Decoder<T> {
                 hi: scanC.hi,
                 vi: scanC.vi,
                 qt_id: scanC.qt_id,
+                tdj: tdj,
+                taj: taj,
                 prevDC: 0,
                 plane: Vec::new(),
                 stride: 0,
@@ -314,7 +318,7 @@ impl<T:Read> Decoder<T> {
                     for iv in 0..c.vi {
                         for ih in 0..c.hi {
                             //println!("MCU ix={} iy={} ih={} iv={}", ix, iy, ih, iv);
-                            let (dc, parsed) = self.parseBlock(&mut decoder, c.qt_id, c.prevDC)?;
+                            let (dc, parsed) = self.parseBlock(&mut decoder, c.qt_id, c.taj, c.tdj, c.prevDC)?;
                             c.prevDC = dc;
                             let offsetX = ix as i32 * 8  * (c.hi as i32) + (ih as i32) * 8;
                             let offsetY = iy as i32 * 8 * (c.vi as i32) + (iv as i32) * 8;
