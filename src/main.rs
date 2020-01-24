@@ -307,7 +307,7 @@ impl<T:Read> Decoder<T> {
         Ok(())
     }
     pub fn outputppm<T2:Write>(&mut self,w:&mut T2) -> Result<(), Error> {
-        writeln!(w, "P3");
+        writeln!(w, "P6");
         writeln!(w, "{} {}", self.width, self.height);
         writeln!(w, "255");
         let maxHi = self.components.iter().fold(0, |acc, v| u8::max(acc,v.hi));
@@ -324,7 +324,8 @@ impl<T:Read> Decoder<T> {
                 let r = tr255(v[0] + 1.402 * (v[2] - 128.));
                 let g = tr255(v[0] - 0.34414 * (v[1] - 128.) - 0.71414 * (v[2] - 128.));
                 let b = tr255(v[0] + 1.772 * (v[1] - 128.));
-                writeln!(w, "{} {} {}", r,g,b);
+                let buf = [r as u8, g as u8, b as u8];
+                w.write(&buf)?;
             }
         }
         Ok(())
