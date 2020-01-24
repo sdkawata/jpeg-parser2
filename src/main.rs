@@ -9,6 +9,8 @@ use failure::Error;
 use haff::HaffDecoder;
 use haff::HaffTable;
 
+type Result<T> = std::result::Result<T, Error>;
+
 static zigzags: [[i32;8];8] = [
     [  0,  1,  5,  6, 14, 15, 27, 28 ],
     [  2,  4,  7, 13, 16, 26, 29, 42 ],
@@ -20,12 +22,12 @@ static zigzags: [[i32;8];8] = [
     [ 35, 36, 48, 49, 57, 58, 62, 63 ],
 ];
 
-fn read_u8<T:Read>(r: &mut T) -> Result<u8, Error> {
+fn read_u8<T:Read>(r: &mut T) -> Result<u8> {
     let mut buf = [0;1];
     r.read_exact(&mut buf)?;
     Ok(buf[0])
 }
-fn read_u16<T:Read>(r: &mut T) -> Result<u16, Error> {
+fn read_u16<T:Read>(r: &mut T) -> Result<u16> {
     let mut buf = [0;2];
     r.read_exact(&mut buf)?;
     Ok((buf[0] as u16) * 0x100 + (buf[1] as u16))
@@ -39,7 +41,7 @@ fn ceildiv(d0:u64, d1:u64) -> u64 {
 }
 
 
-fn check_soi<T:Read>(r: &mut T) -> Result<(), Error> {
+fn check_soi<T:Read>(r: &mut T) -> Result<()> {
     let u0 = read_u8(r)?;
     let u1 = read_u8(r)?;
     if u0 != 0xff || u1 != 0xd8 {
@@ -91,7 +93,7 @@ impl<T:Read> Decoder<T> {
             components: Vec::new(),
         }
     }
-    fn next_marker(&mut self) -> Result<u8, Error>  {
+    fn next_marker(&mut self) -> Result<u8>  {
         let mut ignored = 0;
         loop {
             let u0 = read_u8(&mut self.reader)?;
@@ -108,13 +110,13 @@ impl<T:Read> Decoder<T> {
             ignored+=1;
         }
     }
-    fn read_marker_content(&mut self) -> Result<Vec<u8>, Error> {
+    fn read_marker_content(&mut self) -> Result<Vec<u8>> {
         let size = read_u16(&mut self.reader)?;
         let mut buf = vec![0;size as usize - 2];
         self.reader.read_exact(&mut buf)?;
         Ok(buf)
     }
-    fn parse_app0(&mut self) -> Result<(), Error> {
+    fn parse_app0(&mut self) -> Result<()> {
         let content = self.read_marker_content()?;
         println!("APP0 size={}", content.len());
         let mut cursor = Cursor::new(content);
@@ -138,12 +140,12 @@ impl<T:Read> Decoder<T> {
         }
         Ok(())
     }
-    fn parse_app(&mut self, index: u8) -> Result<(), Error> {
+    fn parse_app(&mut self, index: u8) -> Result<()> {
         let content = self.read_marker_content()?;
         println!("APP{} size={}", index, content.len());
         Ok(())
     }
-    fn parse_dqt(&mut self) -> Result<(), Error> {
+    fn parse_dqt(&mut self) -> Result<()> {
         let content = self.read_marker_content()?;
         let len = content.len() as u64;
         println!("DQT size={}", len);
@@ -162,7 +164,7 @@ impl<T:Read> Decoder<T> {
         }
         Ok(())
     }
-    fn parse_sof0(&mut self) -> Result<(), Error> {
+    fn parse_sof0(&mut self) -> Result<()> {
         let content = self.read_marker_content()?;
         println!("SOF0 size={}", content.len());
         let mut r = Cursor::new(content);
@@ -189,7 +191,7 @@ impl<T:Read> Decoder<T> {
         }
         Ok(())
     }
-    fn parse_dht(&mut self) -> Result<(), Error> {
+    fn parse_dht(&mut self) -> Result<()> {
         let content = self.read_marker_content()?;
         let len = content.len() as u64;
         println!("DHT size={}", len);
@@ -247,7 +249,7 @@ impl<T:Read> Decoder<T> {
         } 
         res
     }
-    fn parseBlock(&mut self, decoder: &mut HaffDecoder, qt_id: u8, prevDC: i32) -> Result<(i32, [[u8;8];8]), Error> {
+    fn parseBlock(&mut self, decoder: &mut HaffDecoder, qt_id: u8, prevDC: i32) -> Result<(i32, [[u8;8];8])> {
         let acHaff = self.hafftables.iter().find(|&ht| qt_id == ht.id && ht.tc != 0).ok_or(format_err!("cannot found achafftable"))?;
         let dcHaff = self.hafftables.iter().find(|&ht| qt_id == ht.id && ht.tc == 0).ok_or(format_err!("cannot found dchafftable"))?;
         let qTable = self.qts.iter().find(|&qt| qt_id == qt.id).ok_or(format_err!("cannot found qtable"))?;
@@ -262,7 +264,7 @@ impl<T:Read> Decoder<T> {
         //println!("{:?}", idcted);
         Ok((curDC, idcted))
     }
-    fn parse_sos(&mut self) -> Result<(), Error> {
+    fn parse_sos(&mut self) -> Result<()> {
         let content = self.read_marker_content()?;
         println!("SOS size={}", content.len());
         let mut cursor = Cursor::new(content);
@@ -330,7 +332,7 @@ impl<T:Read> Decoder<T> {
         self.components = components;
         Ok(())
     }
-    pub fn outputppm<T2:Write>(&mut self,w:&mut T2) -> Result<(), Error> {
+    pub fn outputppm<T2:Write>(&mut self,w:&mut T2) -> Result<()> {
         writeln!(w, "P6");
         writeln!(w, "{} {}", self.width, self.height);
         writeln!(w, "255");
@@ -354,7 +356,7 @@ impl<T:Read> Decoder<T> {
         }
         Ok(())
     }
-    pub fn decode(&mut self) -> Result<(), Error>{
+    pub fn decode(&mut self) -> Result<()>{
         check_soi(&mut self.reader)?;
         println!("SOI found");
         loop {
