@@ -53,6 +53,10 @@ impl HaffDecoder {
             buf: 0,
         }
     }
+    pub fn reset(&mut self) {
+        self.ptr = 0;
+        self.buf = 0;
+    }
     pub fn parseCoeffs<T:Read>(&mut self, rd:&mut T, dcHaff: &HaffTable, acHaff: &HaffTable) -> Result<[i32;64], Error> {
         let mut buf = [0;64];
         let ssss = self.parseHaff(rd, dcHaff)?;

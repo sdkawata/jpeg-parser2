@@ -80,7 +80,8 @@ struct Decoder<T:Read> {
     scanComponents: Vec<ScanComponent>,
     height: u16,
     width: u16,
-    components: Vec<Component>
+    components: Vec<Component>,
+    restart_interval: u16,
 }
 
 impl<T:Read> Decoder<T> {
@@ -93,6 +94,7 @@ impl<T:Read> Decoder<T> {
             width: 0,
             scanComponents: Vec::new(),
             components: Vec::new(),
+            restart_interval: 0,
         }
     }
     fn next_marker(&mut self) -> Result<u8>  {
@@ -216,6 +218,15 @@ impl<T:Read> Decoder<T> {
         }
         Ok(())
     }
+    fn parse_dri(&mut self) -> Result<()> {
+        let content = self.read_marker_content()?;
+        let len = content.len() as u64;
+        let mut cursor = Cursor::new(content);
+        let ri = read_u16(&mut cursor)?;
+        self.restart_interval = ri;
+        println!("DRI size={} ri={}", len, ri);
+        Ok(())
+    }
     fn idct(&mut self, coeffs: &[i32;64]) -> [[u8;8];8] {
         let mut zigzaged = [[0 as f64;8];8];
         for iy in 0..8 {
@@ -310,9 +321,27 @@ impl<T:Read> Decoder<T> {
             components[i].plane = vec![0;(height * components[i].stride) as usize];
         }
         let mut decoder = HaffDecoder::new();
+        let mut mcuPtr = 0;
         for iy in 0..mcuY {
             for ix in 0..mcuX {
                 //parseMCU
+                //check RST
+                if mcuPtr > 0 && self.restart_interval != 0 && mcuPtr % self.restart_interval == 0 {
+                    let next_marker = self.next_marker()?;
+                    let expected = ((mcuPtr / self.restart_interval + 7) % 8) as u8; 
+                    if next_marker == expected + 0xd0 {
+                        //println!("RST {:x}", expected);
+                        decoder.reset();
+                        for i in 0..components.len() {
+                            components[i].prevDC = 0;
+                        }
+                    } else if next_marker >= 0xd0 && next_marker <= 0xd7 {
+                        return Err(format_err!("expect RST {:x} found RST {:x}", expected, next_marker - 0xd0));
+                    } else {
+                        return Err(format_err!("seek RST marker found marker {:x}", next_marker));
+                    }
+                }
+                mcuPtr+=1;
                 for i in 0..components.len() {
                     let c = &mut components[i];
                     for iv in 0..c.vi {
@@ -371,6 +400,7 @@ impl<T:Read> Decoder<T> {
                 0xc0 => self.parse_sof0()?,
                 0xc4 => self.parse_dht()?,
                 0xda => self.parse_sos()?,
+                0xdd => self.parse_dri()?,
                 0xd9 => {
                     println!("reached EOI");
                     return Ok(())
