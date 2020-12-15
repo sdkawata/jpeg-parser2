@@ -1,5 +1,6 @@
 mod haff;
 
+use log::{info};
 use std::io::{ Read, Cursor, Write};
 use std::iter::Iterator;
 use failure::format_err;
@@ -104,7 +105,7 @@ impl<T:Read> Decoder<T> {
                 let u1 = read_u8(&mut self.reader)?;
                 if u1 != 0x00 {
                     if ignored != 0 {
-                        println!("extra {} byte before marker {:x}", ignored, u1);
+                        info!("extra {} byte before marker {:x}", ignored, u1);
                     }
                     return Ok(u1)
                 }
@@ -121,43 +122,43 @@ impl<T:Read> Decoder<T> {
     }
     fn parse_app0(&mut self) -> Result<()> {
         let content = self.read_marker_content()?;
-        println!("APP0 size={}", content.len());
+        info!("APP0 size={}", content.len());
         let mut cursor = Cursor::new(content);
         let mut prefix = [0;5];
         cursor.read_exact(&mut prefix)?;
         match std::str::from_utf8(&prefix)? {
             "JFIF\0" => {
-                println!("JFIF APP0");
+                info!("JFIF APP0");
                 let version = read_u16(&mut cursor)?;
                 let unit = read_u8(&mut cursor)?;
                 let xdensity = read_u16(&mut cursor)?;
                 let ydensity = read_u16(&mut cursor)?;
                 let xthumbnail = read_u8(&mut cursor)?;
                 let ythumbnail = read_u8(&mut cursor)?;
-                println!("version={}", version);
-                println!("unit={}({}) xdensity={} ydensity={}", unit, match unit {0=>"no unit",1=>"dpi",2=>"dpc", _=> "?"},  xdensity, ydensity);
-                println!("xhtumnail={} ythumbnail={}", xthumbnail, ythumbnail);
+                info!("version={}", version);
+                info!("unit={}({}) xdensity={} ydensity={}", unit, match unit {0=>"no unit",1=>"dpi",2=>"dpc", _=> "?"},  xdensity, ydensity);
+                info!("xhtumnail={} ythumbnail={}", xthumbnail, ythumbnail);
             },
-            "JFXX\0" => println!("JFXX APP0"),
+            "JFXX\0" => info!("JFXX APP0"),
             _ => (),
         }
         Ok(())
     }
     fn parse_app(&mut self, index: u8) -> Result<()> {
         let content = self.read_marker_content()?;
-        println!("APP{} size={}", index, content.len());
+        info!("APP{} size={}", index, content.len());
         Ok(())
     }
     fn parse_dqt(&mut self) -> Result<()> {
         let content = self.read_marker_content()?;
         let len = content.len() as u64;
-        println!("DQT size={}", len);
+        info!("DQT size={}", len);
         let mut cursor = Cursor::new(content);
         while len > cursor.position() {
             let flag = read_u8(&mut cursor)?;
             let pq = flag >> 4;
             let tq = flag & 0xf;
-            println!("pq(presision)={} tq(destination identifier)={}", pq, tq);
+            info!("pq(presision)={} tq(destination identifier)={}", pq, tq);
             let mut buf = [0;64];
             cursor.read_exact(&mut buf)?;
             self.qts.push(QuantizationTable{
@@ -169,13 +170,13 @@ impl<T:Read> Decoder<T> {
     }
     fn parse_sof0(&mut self) -> Result<()> {
         let content = self.read_marker_content()?;
-        println!("SOF0 size={}", content.len());
+        info!("SOF0 size={}", content.len());
         let mut r = Cursor::new(content);
         let p = read_u8(&mut r)?;
         let y = read_u16(&mut r)?;
         let x = read_u16(&mut r)?;
         let nf = read_u8(&mut r)?;
-        println!("p(presision)={} y(lines)={} x(samples per line)={} nf(number of components)={}", p,y,x,nf);
+        info!("p(presision)={} y(lines)={} x(samples per line)={} nf(number of components)={}", p,y,x,nf);
         self.height = y;
         self.width = x;
         for i in 0..nf {
@@ -184,7 +185,7 @@ impl<T:Read> Decoder<T> {
             let tqi = read_u8(&mut r)?;
             let hi = hvi >> 4;
             let vi = hvi & 0xf;
-            println!("ci(id)={} hi,vi(sampling factor)={},{} tqi(dqt selector)={}", ci, hi, vi, tqi);
+            info!("ci(id)={} hi,vi(sampling factor)={},{} tqi(dqt selector)={}", ci, hi, vi, tqi);
             self.scanComponents.push(ScanComponent{
                 id: ci,
                 hi: hi,
@@ -197,13 +198,13 @@ impl<T:Read> Decoder<T> {
     fn parse_dht(&mut self) -> Result<()> {
         let content = self.read_marker_content()?;
         let len = content.len() as u64;
-        println!("DHT size={}", len);
+        info!("DHT size={}", len);
         let mut cursor = Cursor::new(content);
         while len > cursor.position() {
             let flag = read_u8(&mut cursor)?;
             let tc = flag >> 4;
             let tn = flag & 0xf;
-            println!("tc={}({}) th(destination identifier)={}", tc, if tc == 0 { "DC" } else {"AC"}, tn);
+            info!("tc={}({}) th(destination identifier)={}", tc, if tc == 0 { "DC" } else {"AC"}, tn);
             let mut bits = [0;16];
             cursor.read_exact(&mut bits)?;
             let valuenum = bits.iter().fold(0, |acc, a| acc + a);
@@ -223,7 +224,7 @@ impl<T:Read> Decoder<T> {
         let mut cursor = Cursor::new(content);
         let ri = read_u16(&mut cursor)?;
         self.restart_interval = ri;
-        println!("DRI size={} ri={}", len, ri);
+        info!("DRI size={} ri={}", len, ri);
         Ok(())
     }
     fn idct(&mut self, coeffs: &[i32;64]) -> [[u8;8];8] {
@@ -271,24 +272,24 @@ impl<T:Read> Decoder<T> {
         for i in 0..64 {
             coeffs[i] = coeffs[i] * (qTable.table[i] as i32)
         }
-        //for i in 0..64 {print!("{},", coeffs[i]);};println!("");
+        //for i in 0..64 {print!("{},", coeffs[i]);};info!("");
         let idcted = self.idct(&coeffs);
-        //println!("{:?}", idcted);
+        //info!("{:?}", idcted);
         Ok((curDC, idcted))
     }
     fn parse_sos(&mut self) -> Result<()> {
         let content = self.read_marker_content()?;
-        println!("SOS size={}", content.len());
+        info!("SOS size={}", content.len());
         let mut cursor = Cursor::new(content);
         let ns = read_u8(&mut cursor)?;
-        println!("ns(number of component)={}", ns);
+        info!("ns(number of component)={}", ns);
         let mut components: Vec<Component> = Vec::new();
         for i in 0..ns {
             let csj = read_u8(&mut cursor)?;
             let tj = read_u8(&mut cursor)?;
             let tdj = tj >> 4;
             let taj = tj & 0xf;
-            println!("csj(scan component selector)={} tdj(dc entropy coding selector)={} taj(ac entropy coding selector)={}", csj, tdj, taj);
+            info!("csj(scan component selector)={} tdj(dc entropy coding selector)={} taj(ac entropy coding selector)={}", csj, tdj, taj);
             let scanC = self.scanComponents.iter().find(|&sc| sc.id == csj).ok_or(format_err!("cannot found from csj"))?;
             components.push(Component{
                 hi: scanC.hi,
@@ -306,17 +307,17 @@ impl<T:Read> Decoder<T> {
         let a = read_u8(&mut cursor)?;
         let ah = a>> 4;
         let al = a & 0xf;
-        println!("ss(Start of spectral or predictor selection)={} se(End of spectral selection)={}", ss, se);
-        println!("ah(Successive approximation bit position high)={} al(Successive approximation bit position low or point transform)={}", ah, al);
+        info!("ss(Start of spectral or predictor selection)={} se(End of spectral selection)={}", ss, se);
+        info!("ah(Successive approximation bit position high)={} al(Successive approximation bit position low or point transform)={}", ah, al);
         let maxHi = components.iter().fold(0, |acc, v| u8::max(acc,v.hi));
         let maxVi = components.iter().fold(0, |acc, v| u8::max(acc,v.vi));
         let mcuX = ceildiv(self.width as u64, (maxHi as u64)*8);
         let mcuY = ceildiv(self.height as u64, (maxVi as u64)*8);
-        //println!("width={} height={} mcuX={} mcuY={}", self.width, self.height, mcuX, mcuY);
+        //info!("width={} height={} mcuX={} mcuY={}", self.width, self.height, mcuX, mcuY);
         for i in 0..components.len() {
             components[i].stride = mcuX as i32 * 8 * (components[i].hi as i32);
             let height = mcuY as i32 * 8 * (components[i].vi as i32);
-            //println!("i={} stride={} height={}", i, components[i].stride, height);
+            //info!("i={} stride={} height={}", i, components[i].stride, height);
             components[i].plane = vec![0;(height * components[i].stride) as usize];
         }
         let mut decoder = HaffDecoder::new();
@@ -329,7 +330,7 @@ impl<T:Read> Decoder<T> {
                     let next_marker = self.next_marker()?;
                     let expected = ((mcuPtr / self.restart_interval + 7) % 8) as u8; 
                     if next_marker == expected + 0xd0 {
-                        //println!("RST {:x}", expected);
+                        //info!("RST {:x}", expected);
                         decoder.reset();
                         for i in 0..components.len() {
                             components[i].prevDC = 0;
@@ -345,7 +346,7 @@ impl<T:Read> Decoder<T> {
                     let c = &mut components[i];
                     for iv in 0..c.vi {
                         for ih in 0..c.hi {
-                            //println!("MCU ix={} iy={} ih={} iv={}", ix, iy, ih, iv);
+                            //info!("MCU ix={} iy={} ih={} iv={}", ix, iy, ih, iv);
                             let (dc, parsed) = self.parseBlock(&mut decoder, c.qt_id, c.taj, c.tdj, c.prevDC)?;
                             c.prevDC = dc;
                             let offsetX = ix as i32 * 8  * (c.hi as i32) + (ih as i32) * 8;
@@ -390,7 +391,7 @@ impl<T:Read> Decoder<T> {
     }
     pub fn decode(&mut self) -> Result<()>{
         check_soi(&mut self.reader)?;
-        println!("SOI found");
+        info!("SOI found");
         loop {
             match self.next_marker()? {
                 0xe0 => self.parse_app0()?,
@@ -401,7 +402,7 @@ impl<T:Read> Decoder<T> {
                 0xda => self.parse_sos()?,
                 0xdd => self.parse_dri()?,
                 0xd9 => {
-                    println!("reached EOI");
+                    info!("reached EOI");
                     return Ok(())
                 }
                 m => return Err(format_err!("unknown marker {:x}", m))
