@@ -28,4 +28,5 @@ document.body.addEventListener('drop', async (e) => {
   const handle = decoder.parse(u8array);
   console.log('parse success')
   document.getElementById('output').textContent = decoder.get_width(handle) + "x" + decoder.get_height(handle) + "\n" + decoder.get_log(handle)
+  decoder.free_handle(handle);
 });

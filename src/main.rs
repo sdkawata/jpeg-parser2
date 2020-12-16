@@ -76,6 +76,9 @@ impl Decoder {
     pub fn get_log(&self, handle:usize) -> String {
         self.results.get(&handle).unwrap().log.clone()
     }
+    pub fn free_handle(&mut self, handle:usize) {
+        self.results.remove(&handle);
+    }
 }
 
 pub fn main(){}
