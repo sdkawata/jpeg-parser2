@@ -409,5 +409,11 @@ impl<T:Read> Decoder<T> {
             }
         }
     }
+    pub fn get_height(&self) -> u16 {
+        self.height
+    }
+    pub fn get_width(&self) -> u16 {
+        self.width
+    }
 }
 
