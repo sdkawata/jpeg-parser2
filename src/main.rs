@@ -9,6 +9,7 @@ use std::sync::Arc;
 use std::cell::RefCell;
 use wasm_bindgen::prelude::*;
 use std::collections::HashMap;
+use std::sync::Once;
 
 struct StrLogger {
     s: Arc<Mutex<RefCell<String>>>,
@@ -37,26 +38,30 @@ struct Result {
 pub struct Decoder {
     results: HashMap<usize, Result>,
     ptr: usize,
+    log_string: Arc<Mutex<RefCell<String>>>,
 }
 
 #[wasm_bindgen]
 impl Decoder {
     pub fn new() -> Decoder {
-        Decoder{
-            results: HashMap::new(),
-            ptr: 0,
-        }
-    }
-    pub fn parse(&mut self, data: &[u8]) -> usize {
+        // do not call this more function then once or panic
         let s = Arc::new(Mutex::new(RefCell::new("".to_string())));
         log::set_boxed_logger(Box::new(StrLogger{s: s.clone()})).unwrap();
         log::set_max_level(LevelFilter::Info);
+        Decoder{
+            results: HashMap::new(),
+            ptr: 0,
+            log_string: s.clone(),
+        }
+    }
+    pub fn parse(&mut self, data: &[u8]) -> usize {
+        *(self.log_string.lock().unwrap().borrow_mut()) = "".to_string();
         let mut decoder = decoder::Decoder::new(BufReader::new(data));
         decoder.decode().unwrap();
         let result = Result{
             width: decoder.get_width() as usize,
             height: decoder.get_height() as usize,
-            log: s.lock().unwrap().borrow().clone(),
+            log: self.log_string.lock().unwrap().borrow().clone(),
         };
         self.ptr += 1;
         self.results.insert(self.ptr, result);
