@@ -1,0 +1,40 @@
+name: deploy
+on:
+  push:
+    branches:
+      - master
+      - wasm
+jobs:
+  build:
+    runs-on: ubuntu-18.04
+    steps:
+      - uses: actions/checkout@v2
+      - name: setup node v14
+        uses: actions/setup-node@v1.4.4
+        with:
+          node-version: 14.x
+      - name: setup cargo
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: wasm32-unknown-unknown
+          override: true
+      - name: install wasm-bindgen
+        run: cargo install wasm-bindgen-cli
+      - name: build wasm
+        run: npm run build-wasm-prod
+      - name: npm install
+        run: npm install
+      - name: build js
+        run: npx webpack
+        env:
+          WEBPACK_BUILD: production
+      - name: relase to gh-pages
+        run: |
+          git config --global user.name "Github Action"
+          git config --global user.email "<>"
+          git --work-tree dist/ checkout --orphan gh-pages
+          rm dist/.gitignore
+          git --work-tree dist/ add --all
+          git commit -m "[ci skip] release $(date)"
+          git push --force --set-upstream origin gh-pages
