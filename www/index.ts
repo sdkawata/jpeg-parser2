@@ -34,6 +34,9 @@ document.body.addEventListener('drop', async (e) => {
   const canvas = document.getElementById('canvas') as HTMLCanvasElement
   canvas.width = width
   canvas.height = height
+  if (width == 0 || height == 0) {
+    return
+  }
   const ctx = canvas.getContext('2d')
   const idata = new ImageData(width, height)
   const pix = new Uint8Array(memory.buffer, decoder.get_pix_ptr(handle), width*height*4)

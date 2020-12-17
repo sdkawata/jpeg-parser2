@@ -1,6 +1,6 @@
 mod decoder;
 
-use log::{Log, Metadata, Record, info, LevelFilter};
+use log::{Log, Metadata, Record, warn, LevelFilter};
 use std::fs::File;
 use std::env;
 use std::io::{BufReader,BufWriter};
@@ -58,7 +58,11 @@ impl Decoder {
     pub fn parse(&mut self, data: &[u8]) -> usize {
         *(self.log_string.lock().unwrap().borrow_mut()) = "".to_string();
         let mut decoder = decoder::Decoder::new(BufReader::new(data));
-        decoder.decode().unwrap();
+        let decode_res = decoder.decode();
+        match decode_res  {
+            Err(e) => warn!("error occured while decoding {}", e),
+            _ => (),
+        }
         let result = Result{
             width: decoder.get_width() as usize,
             height: decoder.get_height() as usize,
