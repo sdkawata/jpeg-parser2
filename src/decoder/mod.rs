@@ -365,28 +365,37 @@ impl<T:Read> Decoder<T> {
         self.components = components;
         Ok(())
     }
-    pub fn outputppm<T2:Write>(&mut self,w:&mut T2) -> Result<()> {
-        writeln!(w, "P6");
-        writeln!(w, "{} {}", self.width, self.height);
-        writeln!(w, "255");
-        let maxHi = self.components.iter().fold(0, |acc, v| u8::max(acc,v.hi));
-        let maxVi = self.components.iter().fold(0, |acc, v| u8::max(acc,v.vi));
+    pub fn get_rgb_vec(&self, alpha:bool) -> Vec<u8> {
+        let max_hi = self.components.iter().fold(0, |acc, v| u8::max(acc,v.hi));
+        let max_vi = self.components.iter().fold(0, |acc, v| u8::max(acc,v.vi));
+        let mut vec = Vec::with_capacity(self.height as usize * self.width as usize *3);
         for iy in 0..self.height {
             for ix in 0..self.width {
                 let mut v = [0.;3];
                 for k in 0..3 {
                     let c = &self.components[k];
-                    let offset_x = ix as i32 * c.hi as i32 / maxHi as i32;
-                    let offset_y = iy as i32 * c.vi as i32 / maxVi as i32;
+                    let offset_x = ix as i32 * c.hi as i32 / max_hi as i32;
+                    let offset_y = iy as i32 * c.vi as i32 / max_vi as i32;
                     v[k] = c.plane[(offset_y * c.stride + offset_x) as usize] as f64;
                 }
                 let r = tr255(v[0] + 1.402 * (v[2] - 128.));
                 let g = tr255(v[0] - 0.34414 * (v[1] - 128.) - 0.71414 * (v[2] - 128.));
                 let b = tr255(v[0] + 1.772 * (v[1] - 128.));
-                let buf = [r as u8, g as u8, b as u8];
-                w.write(&buf)?;
+                vec.push(r as u8);
+                vec.push(g as u8);
+                vec.push(b as u8);
+                if alpha {
+                    vec.push(255)
+                }
             }
-        }
+        };
+        vec
+    }
+    pub fn outputppm<T2:Write>(&self,w:&mut T2) -> Result<()> {
+        writeln!(w, "P6");
+        writeln!(w, "{} {}", self.width, self.height);
+        writeln!(w, "255");
+        w.write(&self.get_rgb_vec(false))?;
         Ok(())
     }
     pub fn decode(&mut self) -> Result<()>{

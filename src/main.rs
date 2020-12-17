@@ -31,7 +31,8 @@ impl Log for StrLogger {
 struct Result {
     width: usize,
     height: usize,
-    log: String
+    log: String,
+    pix: Vec<u8>,
 }
 
 #[wasm_bindgen]
@@ -62,6 +63,7 @@ impl Decoder {
             width: decoder.get_width() as usize,
             height: decoder.get_height() as usize,
             log: self.log_string.lock().unwrap().borrow().clone(),
+            pix: decoder.get_rgb_vec(true),
         };
         self.ptr += 1;
         self.results.insert(self.ptr, result);
@@ -75,6 +77,9 @@ impl Decoder {
     }
     pub fn get_log(&self, handle:usize) -> String {
         self.results.get(&handle).unwrap().log.clone()
+    }
+    pub fn get_pix_ptr(&self, handle:usize) -> *const u8 {
+        self.results.get(&handle).unwrap().pix.as_ptr()
     }
     pub fn free_handle(&mut self, handle:usize) {
         self.results.remove(&handle);

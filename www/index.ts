@@ -1,4 +1,5 @@
 import {Decoder} from 'wasm-jpeg-parser2';
+import {memory} from 'wasm-jpeg-parser2/jpeg-parser2_bg.wasm';
 
 const decoder = Decoder.new()
 
@@ -27,6 +28,16 @@ document.body.addEventListener('drop', async (e) => {
   console.log('parse start')
   const handle = decoder.parse(u8array);
   console.log('parse success')
-  document.getElementById('output').textContent = decoder.get_width(handle) + "x" + decoder.get_height(handle) + "\n" + decoder.get_log(handle)
+  const width = decoder.get_width(handle)
+  const height = decoder.get_height(handle)
+  document.getElementById('output').textContent = width + "x" + height + "\n" + decoder.get_log(handle)
+  const canvas = document.getElementById('canvas') as HTMLCanvasElement
+  canvas.width = width
+  canvas.height = height
+  const ctx = canvas.getContext('2d')
+  const idata = new ImageData(width, height)
+  const pix = new Uint8Array(memory.buffer, decoder.get_pix_ptr(handle), width*height*4)
+  idata.data.set(pix)
+  ctx.putImageData(idata, 0, 0)
   decoder.free_handle(handle);
 });
