@@ -3,7 +3,6 @@ on:
   push:
     branches:
       - master
-      - wasm
 jobs:
   build:
     runs-on: ubuntu-18.04
