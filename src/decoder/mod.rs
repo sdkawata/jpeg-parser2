@@ -302,6 +302,7 @@ impl<T:Read> Decoder<T> {
                 stride: 0,
             })
         }
+        self.components = components;
         let ss = read_u8(&mut cursor)?;
         let se = read_u8(&mut cursor)?;
         let a = read_u8(&mut cursor)?;
@@ -309,16 +310,16 @@ impl<T:Read> Decoder<T> {
         let al = a & 0xf;
         info!("ss(Start of spectral or predictor selection)={} se(End of spectral selection)={}", ss, se);
         info!("ah(Successive approximation bit position high)={} al(Successive approximation bit position low or point transform)={}", ah, al);
-        let maxHi = components.iter().fold(0, |acc, v| u8::max(acc,v.hi));
-        let maxVi = components.iter().fold(0, |acc, v| u8::max(acc,v.vi));
+        let maxHi = self.components.iter().fold(0, |acc, v| u8::max(acc,v.hi));
+        let maxVi = self.components.iter().fold(0, |acc, v| u8::max(acc,v.vi));
         let mcuX = ceildiv(self.width as u64, (maxHi as u64)*8);
         let mcuY = ceildiv(self.height as u64, (maxVi as u64)*8);
         //info!("width={} height={} mcuX={} mcuY={}", self.width, self.height, mcuX, mcuY);
-        for i in 0..components.len() {
-            components[i].stride = mcuX as i32 * 8 * (components[i].hi as i32);
-            let height = mcuY as i32 * 8 * (components[i].vi as i32);
-            //info!("i={} stride={} height={}", i, components[i].stride, height);
-            components[i].plane = vec![0;(height * components[i].stride) as usize];
+        for i in 0..self.components.len() {
+            self.components[i].stride = mcuX as i32 * 8 * (self.components[i].hi as i32);
+            let height = mcuY as i32 * 8 * (self.components[i].vi as i32);
+            //info!("i={} stride={} height={}", i, self.components[i].stride, height);
+            self.components[i].plane = vec![0;(height * self.components[i].stride) as usize];
         }
         let mut decoder = HaffDecoder::new();
         let mut mcuPtr = 0;
@@ -332,8 +333,8 @@ impl<T:Read> Decoder<T> {
                     if next_marker == expected + 0xd0 {
                         //info!("RST {:x}", expected);
                         decoder.reset();
-                        for i in 0..components.len() {
-                            components[i].prevDC = 0;
+                        for i in 0..self.components.len() {
+                            self.components[i].prevDC = 0;
                         }
                     } else if next_marker >= 0xd0 && next_marker <= 0xd7 {
                         return Err(format_err!("expect RST {:x} found RST {:x}", expected, next_marker - 0xd0));
@@ -342,12 +343,18 @@ impl<T:Read> Decoder<T> {
                     }
                 }
                 mcuPtr+=1;
-                for i in 0..components.len() {
-                    let c = &mut components[i];
-                    for iv in 0..c.vi {
-                        for ih in 0..c.hi {
+                for i in 0..self.components.len() {
+                    for iv in 0..self.components[i].vi {
+                        for ih in 0..self.components[i].hi {
                             //info!("MCU ix={} iy={} ih={} iv={}", ix, iy, ih, iv);
-                            let (dc, parsed) = self.parseBlock(&mut decoder, c.qt_id, c.taj, c.tdj, c.prevDC)?;
+                            let (dc, parsed) = self.parseBlock(
+                                &mut decoder,
+                                self.components[i].qt_id,
+                                self.components[i].taj,
+                                self.components[i].tdj,
+                                self.components[i].prevDC
+                            )?;
+                            let c = &mut self.components[i];
                             c.prevDC = dc;
                             let offsetX = ix as i32 * 8  * (c.hi as i32) + (ih as i32) * 8;
                             let offsetY = iy as i32 * 8 * (c.vi as i32) + (iv as i32) * 8;
@@ -362,7 +369,6 @@ impl<T:Read> Decoder<T> {
                 }
             }
         }
-        self.components = components;
         Ok(())
     }
     pub fn get_rgb_vec(&self, alpha:bool) -> Vec<u8> {
