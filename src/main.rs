@@ -1,6 +1,7 @@
 mod decoder;
 
-use log::{Log, Metadata, Record, warn, LevelFilter};
+use env_logger;
+use log::{Log, Metadata, Record, info, warn, LevelFilter};
 use std::fs::File;
 use std::env;
 use std::io::{BufReader,BufWriter};
@@ -9,7 +10,6 @@ use std::sync::Arc;
 use std::cell::RefCell;
 use wasm_bindgen::prelude::*;
 use std::collections::HashMap;
-use std::sync::Once;
 
 struct StrLogger {
     s: Arc<Mutex<RefCell<String>>>,
@@ -90,4 +90,19 @@ impl Decoder {
     }
 }
 
-pub fn main(){}
+pub fn main(){
+    if cfg!(target_arch="wasm32") {
+        return
+    }
+    env_logger::init();
+    let path = env::args().nth(1).unwrap();
+    info!("path {}", path);
+    let mut decoder = decoder::Decoder::new(BufReader::new(File::open(path).unwrap()));
+    let decode_res = decoder.decode();
+    match decode_res  {
+        Err(e) => warn!("error occured while decoding {}", e),
+        _ => (),
+    }
+    let mut w = BufWriter::new(File::create("output.ppm").unwrap());
+    decoder.outputppm(&mut w).unwrap();
+}
