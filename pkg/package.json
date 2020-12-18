@@ -1,0 +1,15 @@
+{
+    "name": "wasm-jpeg-parser2",
+    "collaborators": [
+      "kawata"
+    ],
+    "version": "0.0.1",
+    "files": [
+      "jpeg-parser2.wasm",
+      "jpeg-parser2.js",
+      "jpeg-parser2.d.ts"
+    ],
+    "module": "jpeg-parser2.js",
+    "types": "jpeg-parser2.d.ts",
+    "sideEffects": false
+  }

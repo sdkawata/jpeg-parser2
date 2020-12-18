@@ -1,0 +1,18 @@
+{
+  "name": "jpeg-parser2",
+  "version": "0.0.1",
+  "scripts": {
+    "build-wasm-dev": "cargo build --target wasm32-unknown-unknown && cp ./target/wasm32-unknown-unknown/debug/jpeg-parser2.wasm ./pkg/ && wasm-bindgen ./pkg/jpeg-parser2.wasm --out-dir ./pkg/",
+    "build-wasm-prod": "cargo build --target wasm32-unknown-unknown --release && cp ./target/wasm32-unknown-unknown/release/jpeg-parser2.wasm ./pkg/ && wasm-bindgen ./pkg/jpeg-parser2.wasm --out-dir ./pkg/",
+    "start": "webpack-cli serve"
+  },
+  "dependencies": {
+    "copy-webpack-plugin": "^7.0.0",
+    "ts-loader": "^8.0.12",
+    "typescript": "^4.1.3",
+    "wasm-jpeg-parser2": "file:./pkg",
+    "webpack": "^5.10.3",
+    "webpack-cli": "^4.2.0",
+    "webpack-dev-server": "^3.11.0"
+  }
+}

@@ -1,0 +1,14 @@
+{
+    "include": [
+      "./www/*"
+    ],
+    "exclude": [
+      "./node_modules/**/*"
+    ],
+    "moduleResolution": "node",
+    "compilerOptions": {
+      "lib": ["dom", "esnext"],
+      "jsx": "react",
+      "target": "es5",
+    }
+  }
