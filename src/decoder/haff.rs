@@ -57,13 +57,13 @@ impl HaffDecoder {
         self.ptr = 0;
         self.buf = 0;
     }
-    pub fn parseCoeffs<T:Read>(&mut self, rd:&mut T, dcHaff: &HaffTable, acHaff: &HaffTable) -> Result<[i32;64], Error> {
+    pub fn parse_coeffs<T:Read>(&mut self, rd:&mut T, dc_haff: &HaffTable, ac_haff: &HaffTable) -> Result<[i32;64], Error> {
         let mut buf = [0;64];
-        let ssss = self.parseHaff(rd, dcHaff)?;
-        buf[0]=self.readSSSSBits(ssss, rd)?;
+        let ssss = self.parse_haff(rd, dc_haff)?;
+        buf[0]=self.read_ssss_bits(ssss, rd)?;
         let mut ptr = 1;
         while ptr < 64 {
-            let r = self.parseHaff(rd, acHaff)?;
+            let r = self.parse_haff(rd, ac_haff)?;
             let rrrr = r >> 4;
             let ssss = r & 0xf;
             if ssss == 0 && rrrr == 0 {
@@ -84,40 +84,40 @@ impl HaffDecoder {
                     buf[ptr] = 0;
                     ptr+=1;
                 }
-                buf[ptr] = self.readSSSSBits(ssss, rd)?;
+                buf[ptr] = self.read_ssss_bits(ssss, rd)?;
                 ptr+=1;
             }
         }
         Ok(buf)
     }
-    fn readSSSSBits<T:Read>(&mut self, ssss: u8, rd:&mut T) -> Result<i32, Error> {
+    fn read_ssss_bits<T:Read>(&mut self, ssss: u8, rd:&mut T) -> Result<i32, Error> {
         if ssss == 0 {
             return Ok(0)
         }
         let mut r = 0;
         for _ in 0..ssss {
-            r = (r << 1) + self.readBit(rd)? as i32
+            r = (r << 1) + self.read_bit(rd)? as i32
         }
         if r < (1 << (ssss - 1)) {
             return Ok(r - (1 << ssss) + 1);
         }
         Ok(r)
     }
-    fn parseHaff<T:Read>(&mut self, r:&mut T, haff: &HaffTable) -> Result<u8, Error> {
-        let mut curBit = 0 as i32;
+    fn parse_haff<T:Read>(&mut self, r:&mut T, haff: &HaffTable) -> Result<u8, Error> {
+        let mut cur_bit = 0 as i32;
         for i in 0..16 {
-            curBit = (curBit << 1) + self.readBit(r)? as i32;
+            cur_bit = (cur_bit << 1) + self.read_bit(r)? as i32;
             if haff.indices[i] == -1 {
                 continue;
             }
-            if haff.mincodes[i] <=curBit && curBit <= haff.maxcodes[i] {
-                //println!("haff:{}",haff.values[(haff.indices[i] + curBit - haff.mincodes[i]) as usize]);
-                return Ok(haff.values[(haff.indices[i] + curBit - haff.mincodes[i]) as usize])
+            if haff.mincodes[i] <=cur_bit && cur_bit <= haff.maxcodes[i] {
+                //println!("haff:{}",haff.values[(haff.indices[i] + cur_bit - haff.mincodes[i]) as usize]);
+                return Ok(haff.values[(haff.indices[i] + cur_bit - haff.mincodes[i]) as usize])
             }
         }
         Err(format_err!("haff parse error"))
     }
-    fn readBit<T:Read>(&mut self, r:&mut T) -> Result<u8, Error> {
+    fn read_bit<T:Read>(&mut self, r:&mut T) -> Result<u8, Error> {
         if self.ptr == 0 {
             let mut buf = [0];
             r.read_exact(&mut buf)?;

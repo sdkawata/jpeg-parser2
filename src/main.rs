@@ -16,7 +16,7 @@ struct StrLogger {
 }
 
 impl Log for StrLogger {
-    fn enabled(&self, metadata: &Metadata) -> bool {
+    fn enabled(&self, _metadata: &Metadata) -> bool {
         true
     }
     fn log(&self, record: &Record) {
