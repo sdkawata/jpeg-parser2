@@ -387,14 +387,16 @@ impl<T: Read> Decoder<T> {
                         }
                     } else if next_marker >= 0xd0 && next_marker <= 0xd7 {
                         return Err(format_err!(
-                            "expect RST {:x} found RST {:x}",
+                            "expect RST {:x} found RST {:x} at ix={} iy={} mcu_ptr={}",
                             expected,
-                            next_marker - 0xd0
+                            next_marker - 0xd0,
+                            ix, iy, mcu_ptr
                         ));
                     } else {
                         return Err(format_err!(
-                            "seek RST marker found marker {:x}",
-                            next_marker
+                            "seek RST marker found marker {:x} at ix={} iy={} mcu_ptr={}",
+                            next_marker,
+                            ix, iy, mcu_ptr
                         ));
                     }
                 }
