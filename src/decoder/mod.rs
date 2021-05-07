@@ -4,7 +4,7 @@ use failure::format_err;
 use failure::Error;
 use haff::HaffDecoder;
 use haff::HaffTable;
-use log::info;
+use log::{info, warn};
 use std::io::{Cursor, Read, Write};
 use std::iter::Iterator;
 
@@ -371,16 +371,16 @@ impl<T: Read> Decoder<T> {
             self.components[i].plane = vec![0; (height * self.components[i].stride) as usize];
         }
         let mut decoder = HaffDecoder::new();
-        let mut mcu_ptr = 0;
+        let mut mcu_ptr: u64 = 0;
         for iy in 0..mcu_y {
             for ix in 0..mcu_x {
                 //parseMCU
                 //check RST
-                if mcu_ptr > 0 && self.restart_interval != 0 && mcu_ptr % self.restart_interval == 0 {
+                if mcu_ptr > 0 && self.restart_interval != 0 && mcu_ptr % (self.restart_interval as u64) == 0 {
                     let next_marker = self.next_marker()?;
-                    let expected = ((mcu_ptr / self.restart_interval + 7) % 8) as u8;
+                    let expected = ((mcu_ptr / (self.restart_interval as u64) + 7) % 8) as u8;
                     if next_marker == expected + 0xd0 {
-                        //info!("RST {:x}", expected);
+                        // info!("RST {:x} ix={} iy={} mcu_ptr={}", expected, ix, iy, mcu_ptr);
                         decoder.reset();
                         for i in 0..self.components.len() {
                             self.components[i].prev_dc = 0;
@@ -403,13 +403,19 @@ impl<T: Read> Decoder<T> {
                     for iv in 0..self.components[i].vi {
                         for ih in 0..self.components[i].hi {
                             //info!("MCU ix={} iy={} ih={} iv={}", ix, iy, ih, iv);
-                            let (dc, parsed) = self.parse_block(
+                            let (dc, parsed) = match self.parse_block(
                                 &mut decoder,
                                 self.components[i].qt_id,
                                 self.components[i].taj,
                                 self.components[i].tdj,
                                 self.components[i].prev_dc,
-                            )?;
+                            ) {
+                                Ok(v) => v,
+                                Err(e) => {
+                                    warn!("parse block error at i={} ix={} iy={} ih={} iv={} mcu_ptr={} ",i, ix, iy, ih, iv, mcu_ptr);
+                                    Err(e)?
+                                }
+                            };
                             let c = &mut self.components[i];
                             c.prev_dc = dc;
                             let offset_x = ix as i32 * 8 * (c.hi as i32) + (ih as i32) * 8;
