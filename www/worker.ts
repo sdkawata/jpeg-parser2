@@ -3,9 +3,10 @@ global['log'] = (s) => {
   console.log('uncaught message', s)
 }
 import {BrowserMessage, WorkerMessage} from './message'
+
 import {loadWasm} from './wasm_loader'
 
-loadWasm.then(([{Decoder}, {memory}]) => {
+loadWasm().then(([{Decoder}, {memory}]) => {
   const ctx: Worker = self as any
   function postMessage(message: WorkerMessage, transfer:any = []) {
     ctx.postMessage(message, transfer)
@@ -26,8 +27,11 @@ loadWasm.then(([{Decoder}, {memory}]) => {
       }
       global['log'] = appendLog
       console.log('decode start at worker')
+      const start = performance.now()
       const handle = decoder.parse(msg.img);
+      const end = performance.now()
       console.log('decode end at worker')
+      appendLog("decode end elapsed: " + (end - start) + " sec")
       const width = decoder.get_width(handle)
       const height = decoder.get_height(handle)
       if (width == 0 || height == 0) {
