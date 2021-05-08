@@ -13,6 +13,7 @@
     "wasm-jpeg-parser2": "file:./pkg",
     "webpack": "^5.10.3",
     "webpack-cli": "^4.2.0",
-    "webpack-dev-server": "^3.11.0"
+    "webpack-dev-server": "^3.11.0",
+    "worker-loader": "^3.0.8"
   }
 }
