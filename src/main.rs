@@ -9,19 +9,21 @@ use std::sync::Mutex;
 use std::sync::Arc;
 use std::cell::RefCell;
 use wasm_bindgen::prelude::*;
+use wasm_bindgen::JsCast;
 use std::collections::HashMap;
 
-struct StrLogger {
-    s: Arc<Mutex<RefCell<String>>>,
-}
+struct JsFuncLogger {}
 
-impl Log for StrLogger {
+impl Log for JsFuncLogger {
     fn enabled(&self, _metadata: &Metadata) -> bool {
         true
     }
     fn log(&self, record: &Record) {
         println!("{}", record.args());
-        self.s.lock().unwrap().borrow_mut().push_str(&format!("{}\n", record.args()))
+        let log_func = js_sys::Reflect::get(&js_sys::global(), &JsValue::from("log")).unwrap().dyn_into::<js_sys::Function>().unwrap();
+        let this = JsValue::null();
+        let s = format!("{}", record.args());
+        let _ = log_func.call1(&this, &JsValue::from(s));
     }
     fn flush(&self){}
 }
@@ -47,7 +49,7 @@ impl Decoder {
     pub fn new() -> Decoder {
         // do not call this more function then once or panic
         let s = Arc::new(Mutex::new(RefCell::new("".to_string())));
-        log::set_boxed_logger(Box::new(StrLogger{s: s.clone()})).unwrap();
+        log::set_boxed_logger(Box::new(JsFuncLogger{})).unwrap();
         log::set_max_level(LevelFilter::Info);
         Decoder{
             results: HashMap::new(),

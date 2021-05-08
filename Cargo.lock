@@ -122,7 +122,17 @@ version = "0.1.0"
 dependencies = [
  "env_logger",
  "failure",
+ "js-sys",
  "log",
+ "wasm-bindgen",
+]
+
+[[package]]
+name = "js-sys"
+version = "0.3.50"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2d99f9e3e84b8f67f846ef5b4cbbc3b1c29f6c759fcbce6f01aa0e73d932a24c"
+dependencies = [
  "wasm-bindgen",
 ]
 
