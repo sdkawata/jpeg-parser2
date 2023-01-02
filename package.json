@@ -8,7 +8,7 @@
   },
   "dependencies": {
     "copy-webpack-plugin": "^7.0.0",
-    "ts-loader": "^8.0.12",
+    "ts-loader": "^8.4.0",
     "typescript": "^4.1.3",
     "wasm-jpeg-parser2": "file:./pkg",
     "webpack": "^5.10.3",
